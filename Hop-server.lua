@@ -48,10 +48,9 @@ task.spawn(function()
     end
 end)
 
--- ⚠️ [แก้ไขจุดสำคัญ] ระบบแก้บั๊ก Teleport Failed / Error Code 772 (ตรวจจับเพิ่มทั้งใน CoreGui และ PlayerGui ของเกม)
+-- ระบบแก้บั๊ก Teleport Failed / Error Code 772
 task.spawn(function()
     while task.wait(1) do
-        -- แบบที่ 1: เช็คใน CoreGui (ของระบบ Roblox)
         local robloxPromptGui = CoreGui:FindFirstChild("RobloxPromptGui")
         if robloxPromptGui then
             local promptHolder = robloxPromptGui:FindFirstChild("promptOverlay") and robloxPromptGui.promptOverlay:FindFirstChild("ErrorPrompt")
@@ -71,13 +70,10 @@ task.spawn(function()
             end
         end
 
-        -- แบบที่ 2: เช็คใน PlayerGui (กรณีเป็น UI แจ้งเตือนของตัวเกมเองแบบในรูป)
         local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
         if playerGui then
-            -- สแกนหาหน้าต่างที่มีข้อความ Teleport Failed หรือ Error Code 772
             for _, gui in pairs(playerGui:GetDescendants()) do
                 if gui:IsA("TextLabel") and (string.find(gui.Text, "Teleport Failed") or string.find(gui.Text, "772")) then
-                    -- หาปุ่ม Ok หรือ Button ที่อยู่ในหน้าต่างนั้น
                     local frame = gui.Parent
                     if frame then
                         local okButton = frame:FindFirstChild("Ok") or frame:FindFirstChild("OK") or frame:FindFirstChildWhichIsA("TextButton", true)
@@ -151,14 +147,16 @@ task.spawn(function()
     repeat task.wait(0.5) until LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     
     if getgenv().AutoFarm then
-        print("⏳ [ระบบตรวจสอบความเสถียร] บังคับรอนิ่ง ๆ 7 วินาที เพื่อให้สัตว์เลี้ยงโหลดเสร็จ...")
-        task.wait(7.0)
+        -- ⏳ [ดึงค่าดีเลย์สแกนจากหน้าบ้าน] หากไม่มีการกำหนด จะตั้งค่าเริ่มต้นไว้ที่ 7 วินาที
+        local scanWaitTime = getgenv().WaitBeforeScan or 7.0
+        print("⏳ [ระบบหน่วงเวลาก่อนสแกน] บังคับรอนิ่ง ๆ " .. tostring(scanWaitTime) .. " วินาที เพื่อให้สัตว์เลี้ยงโหลดเสร็จ...")
+        task.wait(scanWaitTime)
         
         local mapFolder = Workspace:WaitForChild("Map", 15)
         local targetPrompt = nil
         local promptParentPart = nil
         
-        print("🎯 ครบ 7 วินาทีแล้ว เริ่มกระบวนการสแกนหาตัวสัตว์เลี้ยงเป้าหมายในแมพ...")
+        print("🎯 ครบตามกำหนดเวลาแล้ว เริ่มกระบวนการสแกนหาตัวสัตว์เลี้ยงเป้าหมายในแมพ...")
         if mapFolder then
             for _, obj in pairs(mapFolder:GetDescendants()) do
                 if obj:IsA("ProximityPrompt") then
@@ -187,8 +185,9 @@ task.spawn(function()
         if targetPrompt and promptParentPart and promptParentPart:IsA("BasePart") then
             isSafeToClear = true 
             
+            -- คำนวณเวลาที่เหลือโดยหักเวลาที่ยืนรอสแกนรอบแรกไปแล้ว
             local configDelay = getgenv().DelayBeforeFly or 20.0
-            local remainingWait = math.max(0.1, configDelay - 7.0)
+            local remainingWait = math.max(0.1, configDelay - scanWaitTime)
             
             print("🎯 [พบสัตว์เป้าหมาย!] เปิดระบบลบต้นไม้ และรอเคลียร์จอค้างที่เหลืออีก " .. tostring(remainingWait) .. " วินาที...")
             task.wait(remainingWait)
@@ -205,7 +204,7 @@ task.spawn(function()
             task.wait(1.5) 
             HopServer()
         else
-            print("❌ ไม่พบสัตว์เป้าหมายหลังจากหน่วงเวลารอ 7 วินาที ทำการย้ายเซิร์ฟเวอร์หนี...")
+            print("❌ ไม่พบสัตว์เป้าหมายหลังจากหน่วงเวลารอสแกน ทำการย้ายเซิร์ฟเวอร์หนีทันที...")
             HopServer()
         end
     end
