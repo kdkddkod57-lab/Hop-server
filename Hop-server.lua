@@ -48,9 +48,10 @@ task.spawn(function()
     end
 end)
 
--- ระบบแก้บั๊ก Teleport Failed / Error Code 772
+-- ⚠️ [แก้ไขจุดสำคัญ] ระบบแก้บั๊ก Teleport Failed / Error Code 772 (ตรวจจับเพิ่มทั้งใน CoreGui และ PlayerGui ของเกม)
 task.spawn(function()
     while task.wait(1) do
+        -- แบบที่ 1: เช็คใน CoreGui (ของระบบ Roblox)
         local robloxPromptGui = CoreGui:FindFirstChild("RobloxPromptGui")
         if robloxPromptGui then
             local promptHolder = robloxPromptGui:FindFirstChild("promptOverlay") and robloxPromptGui.promptOverlay:FindFirstChild("ErrorPrompt")
@@ -59,14 +60,38 @@ task.spawn(function()
                 local okButton = buttonLayout and buttonLayout:FindFirstChildWhichIsA("TextButton", true)
                 
                 if okButton and okButton.Visible then
-                    print("⚠️ เจอหน้าต่าง Teleport Failed! กำลังคลิกปุ่ม OK เพื่อแก้ไข...")
+                    print("⚠️ เจอหน้าต่าง Teleport Failed (CoreGui)! กำลังคลิกปุ่ม OK...")
                     local pos = okButton.AbsolutePosition + (okButton.AbsoluteSize / 2)
                     VirtualInputManager:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 1)
                     task.wait(0.1)
                     VirtualInputManager:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 1)
-                    
                     task.wait(1)
                     HopServer()
+                end
+            end
+        end
+
+        -- แบบที่ 2: เช็คใน PlayerGui (กรณีเป็น UI แจ้งเตือนของตัวเกมเองแบบในรูป)
+        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+        if playerGui then
+            -- สแกนหาหน้าต่างที่มีข้อความ Teleport Failed หรือ Error Code 772
+            for _, gui in pairs(playerGui:GetDescendants()) do
+                if gui:IsA("TextLabel") and (string.find(gui.Text, "Teleport Failed") or string.find(gui.Text, "772")) then
+                    -- หาปุ่ม Ok หรือ Button ที่อยู่ในหน้าต่างนั้น
+                    local frame = gui.Parent
+                    if frame then
+                        local okButton = frame:FindFirstChild("Ok") or frame:FindFirstChild("OK") or frame:FindFirstChildWhichIsA("TextButton", true)
+                        if okButton and okButton.IsA("TextButton") and okButton.Visible then
+                            print("⚠️ เจอหน้าต่าง Teleport Failed (Game UI)! กำลังคลิกปุ่ม OK อัตโนมัติ...")
+                            local pos = okButton.AbsolutePosition + (okButton.AbsoluteSize / 2)
+                            VirtualInputManager:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 1)
+                            task.wait(0.1)
+                            VirtualInputManager:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 1)
+                            task.wait(1)
+                            HopServer()
+                            break
+                        end
+                    end
                 end
             end
         end
@@ -120,18 +145,15 @@ local function FlyToTargetPart(targetPart)
     end
 end
 
--- 3. ระบบหลัก (ปรับปรุงเสถียรภาพการล็อกเวลาเพื่อแก้ปัญหาวิ่งเร็วเกินไป)
+-- 3. ระบบหลัก
 task.spawn(function()
-    -- รันคำสั่งบังคับรอกลไกเกมเบื้องต้นโหลดให้เสร็จก่อน
     if not game:IsLoaded() then game.Loaded:Wait() end
     repeat task.wait(0.5) until LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     
     if getgenv().AutoFarm then
-        -- 🔒 [จุดแก้ไขหลัก] บังคับล็อกเวลาระบบรอให้ยืนนิ่ง ๆ แน่ๆ 7 วินาที ห้ามข้ามคำสั่งเด็ดขาด
         print("⏳ [ระบบตรวจสอบความเสถียร] บังคับรอนิ่ง ๆ 7 วินาที เพื่อให้สัตว์เลี้ยงโหลดเสร็จ...")
         task.wait(7.0)
         
-        -- ลิงก์เข้าหาโฟลเดอร์ Map หลังจากที่รอมันเกิดเสร็จแล้ว 7 วินาที
         local mapFolder = Workspace:WaitForChild("Map", 15)
         local targetPrompt = nil
         local promptParentPart = nil
@@ -162,9 +184,7 @@ task.spawn(function()
             end
         end
         
-        -- ตรวจสอบเงื่อนไขหลังสแกน
         if targetPrompt and promptParentPart and promptParentPart:IsA("BasePart") then
-            -- [กรณีเจอสัตว์] เปิดระบบลบต้นไม้ และรอดีเลย์ที่เหลือจากคอนฟิกหน้าบ้าน
             isSafeToClear = true 
             
             local configDelay = getgenv().DelayBeforeFly or 20.0
@@ -185,7 +205,6 @@ task.spawn(function()
             task.wait(1.5) 
             HopServer()
         else
-            -- [กรณีไม่เจอสัตว์หลังจากหน่วงรอแล้ว 7 วินาที] ย้ายเซิร์ฟทันที
             print("❌ ไม่พบสัตว์เป้าหมายหลังจากหน่วงเวลารอ 7 วินาที ทำการย้ายเซิร์ฟเวอร์หนี...")
             HopServer()
         end
