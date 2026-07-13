@@ -10,7 +10,7 @@ local isSafeToClear = false
 -- 1. ระบบรัวกดปุ่ม K เพื่อข้ามหน้าโหลดเกม
 task.spawn(function()
     print("⏳ เริ่มระบบกดปุ่ม K อัตโนมัติเพื่อข้ามหน้าโหลด...")
-    local endTime = tick() + (getgenv().DelayBeforeFly or 20) + 2 
+    local endTime = tick() + (getgenv().DelayBeforeFly or 20) + 5
     while tick() < endTime do
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.K, false, game)
         task.wait(0.05)
@@ -20,7 +20,7 @@ task.spawn(function()
     print("🛑 ข้ามหน้าโหลดเสร็จสิ้น")
 end)
 
--- 2. ระบบลบต้นไม้แบบประหยัด CPU (ทำงานเมื่อเจอป้าหมายและเปิดระบบเคลียร์)
+-- 2. ระบบลบต้นไม้แบบประหยัด CPU 
 task.spawn(function()
     while task.wait(0.5) do
         if isSafeToClear then
@@ -120,16 +120,20 @@ local function FlyToTargetPart(targetPart)
     end
 end
 
--- 3. ระบบหลัก (ปรับลำดับการเช็คสัตว์ก่อนรอนิ่งตามสั่ง)
+-- 3. ระบบหลัก (แก้ไข: เพิ่มระบบหน่วงเวลา 7 วินาทีแรกให้สัตว์เกิดก่อนสแกน)
 task.spawn(function()
     repeat task.wait(0.5) until game:IsLoaded() and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     
     if getgenv().AutoFarm then
+        -- [แก้ไขจุดสำคัญ] สั่งให้ยืนรอ 7 วินาที (ค่าเฉลี่ยกลางระหว่าง 5-10 วิ) เพื่อรอให้โมเดลสัตว์เลี้ยงโหลดเข้ามาในแผนที่ก่อน
+        print("⏳ [ระบบหน่วงเวลารอสัตว์เกิด] กำลังยืนรอ 7 วินาที เพื่อให้ตัวเกมโหลดโมเดลสัตว์เลี้ยงเข้ามา...")
+        task.wait(7.0)
+        
         local mapFolder = Workspace:WaitForChild("Map", 10)
         local targetPrompt = nil
         local promptParentPart = nil
         
-        -- ทำการ Fast-Scan สแกนหาด่วนทันทีที่เข้าเกมเพื่อเช็คว่ามีสัตว์ไหม
+        print("🎯 ครบ 7 วินาทีแล้ว เริ่มทำสแกนหาตัวสัตว์เลี้ยงเป้าหมาย...")
         if mapFolder then
             for _, obj in pairs(mapFolder:GetDescendants()) do
                 if obj:IsA("ProximityPrompt") then
@@ -155,17 +159,19 @@ task.spawn(function()
             end
         end
         
-        -- ตรวจสอบเงื่อนไขผลลัพธ์การสแกน
+        -- ตรวจสอบเงื่อนไขหลังสแกน
         if targetPrompt and promptParentPart and promptParentPart:IsA("BasePart") then
-            -- [กรณีเจอสัตว์] สั่งรอนิ่งๆ และเปิดระบบลบต้นไม้ไปพร้อมกันเพื่อไม่ให้เสียเวลา
-            isSafeToClear = true -- เปิดระบบลบต้นไม้ทันทีเพื่อเคลียร์แมพรอ
+            -- [กรณีเจอสัตว์] เปิดระบบลบต้นไม้ และรอดีเลย์จนครบตามที่ตั้งไว้ในหน้าบ้าน
+            isSafeToClear = true 
             
-            local waitTime = getgenv().DelayBeforeFly or 20.0
-            print("🎯 [พบสัตว์เป้าหมาย!] เปิดระบบลบต้นไม้และยืนรอนิ่ง ๆ " .. tostring(waitTime) .. " วินาที เพื่อให้หายค้าง...")
-            task.wait(waitTime)
+            -- ลบเวลา 7 วินาทีแรกที่รอไปแล้วออกจากดีเลย์รวม เพื่อความแม่นยำ (หน้าบ้านตั้งไว้ 20 วิ จะรอเพิ่มอีก 13 วิ)
+            local configDelay = getgenv().DelayBeforeFly or 20.0
+            local remainingWait = math.max(0.1, configDelay - 7.0)
             
-            -- เมื่อหายค้างและเคลียร์ต้นไม้เสร็จแล้ว ค่อยสั่งบินไปซื้อ
-            print("⚡ หายค้างแล้ว! กำลังบินไปซื้อสัตว์เลี้ยงพิกัดล่าสุด...")
+            print("🎯 [พบสัตว์เป้าหมาย!] เปิดระบบลบต้นไม้ และรอหน่วงเวลาหายค้างเพิ่มอีก " .. tostring(remainingWait) .. " วินาที...")
+            task.wait(remainingWait)
+            
+            print("⚡ หายค้างและเคลียร์ต้นไม้เสร็จแล้ว! กำลังบินไปซื้อพิกัดล่าสุด...")
             FlyToTargetPart(promptParentPart)
             
             task.wait(0.1)
@@ -177,8 +183,8 @@ task.spawn(function()
             task.wait(1.5) 
             HopServer()
         else
-            -- [กรณีไม่เจอสัตว์] สั่งโดดหนีทันที ไม่ต้องเสียเวลายืนรอ 20 วินาที และไม่ลบต้นไม้
-            print("❌ ไม่พบสัตว์เป้าหมายในเซิร์ฟนี้! ย้ายเซิร์ฟเวอร์หนีทันที ไม่ยืนรอให้เสียเวลา...")
+            -- [กรณีไม่เจอสัตว์หลังจากรอเกิด 7 วิแล้ว] สั่งย้ายเซิร์ฟเวอร์หนีทันที
+            print("❌ ไม่พบสัตว์เป้าหมายในเซิร์ฟนี้! ย้ายเซิร์ฟเวอร์หนีทันที...")
             HopServer()
         end
     end
