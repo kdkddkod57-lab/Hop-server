@@ -120,20 +120,23 @@ local function FlyToTargetPart(targetPart)
     end
 end
 
--- 3. ระบบหลัก (แก้ไข: เพิ่มระบบหน่วงเวลา 7 วินาทีแรกให้สัตว์เกิดก่อนสแกน)
+-- 3. ระบบหลัก (ปรับปรุงเสถียรภาพการล็อกเวลาเพื่อแก้ปัญหาวิ่งเร็วเกินไป)
 task.spawn(function()
-    repeat task.wait(0.5) until game:IsLoaded() and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    -- รันคำสั่งบังคับรอกลไกเกมเบื้องต้นโหลดให้เสร็จก่อน
+    if not game:IsLoaded() then game.Loaded:Wait() end
+    repeat task.wait(0.5) until LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     
     if getgenv().AutoFarm then
-        -- [แก้ไขจุดสำคัญ] สั่งให้ยืนรอ 7 วินาที (ค่าเฉลี่ยกลางระหว่าง 5-10 วิ) เพื่อรอให้โมเดลสัตว์เลี้ยงโหลดเข้ามาในแผนที่ก่อน
-        print("⏳ [ระบบหน่วงเวลารอสัตว์เกิด] กำลังยืนรอ 7 วินาที เพื่อให้ตัวเกมโหลดโมเดลสัตว์เลี้ยงเข้ามา...")
+        -- 🔒 [จุดแก้ไขหลัก] บังคับล็อกเวลาระบบรอให้ยืนนิ่ง ๆ แน่ๆ 7 วินาที ห้ามข้ามคำสั่งเด็ดขาด
+        print("⏳ [ระบบตรวจสอบความเสถียร] บังคับรอนิ่ง ๆ 7 วินาที เพื่อให้สัตว์เลี้ยงโหลดเสร็จ...")
         task.wait(7.0)
         
-        local mapFolder = Workspace:WaitForChild("Map", 10)
+        -- ลิงก์เข้าหาโฟลเดอร์ Map หลังจากที่รอมันเกิดเสร็จแล้ว 7 วินาที
+        local mapFolder = Workspace:WaitForChild("Map", 15)
         local targetPrompt = nil
         local promptParentPart = nil
         
-        print("🎯 ครบ 7 วินาทีแล้ว เริ่มทำสแกนหาตัวสัตว์เลี้ยงเป้าหมาย...")
+        print("🎯 ครบ 7 วินาทีแล้ว เริ่มกระบวนการสแกนหาตัวสัตว์เลี้ยงเป้าหมายในแมพ...")
         if mapFolder then
             for _, obj in pairs(mapFolder:GetDescendants()) do
                 if obj:IsA("ProximityPrompt") then
@@ -161,17 +164,16 @@ task.spawn(function()
         
         -- ตรวจสอบเงื่อนไขหลังสแกน
         if targetPrompt and promptParentPart and promptParentPart:IsA("BasePart") then
-            -- [กรณีเจอสัตว์] เปิดระบบลบต้นไม้ และรอดีเลย์จนครบตามที่ตั้งไว้ในหน้าบ้าน
+            -- [กรณีเจอสัตว์] เปิดระบบลบต้นไม้ และรอดีเลย์ที่เหลือจากคอนฟิกหน้าบ้าน
             isSafeToClear = true 
             
-            -- ลบเวลา 7 วินาทีแรกที่รอไปแล้วออกจากดีเลย์รวม เพื่อความแม่นยำ (หน้าบ้านตั้งไว้ 20 วิ จะรอเพิ่มอีก 13 วิ)
             local configDelay = getgenv().DelayBeforeFly or 20.0
             local remainingWait = math.max(0.1, configDelay - 7.0)
             
-            print("🎯 [พบสัตว์เป้าหมาย!] เปิดระบบลบต้นไม้ และรอหน่วงเวลาหายค้างเพิ่มอีก " .. tostring(remainingWait) .. " วินาที...")
+            print("🎯 [พบสัตว์เป้าหมาย!] เปิดระบบลบต้นไม้ และรอเคลียร์จอค้างที่เหลืออีก " .. tostring(remainingWait) .. " วินาที...")
             task.wait(remainingWait)
             
-            print("⚡ หายค้างและเคลียร์ต้นไม้เสร็จแล้ว! กำลังบินไปซื้อพิกัดล่าสุด...")
+            print("⚡ หายค้างชัวร์! กำลังพุ่งบินไปซื้อสัตว์ที่จุดพิกัดล่าสุด...")
             FlyToTargetPart(promptParentPart)
             
             task.wait(0.1)
@@ -179,12 +181,12 @@ task.spawn(function()
             task.wait(2.0) 
             targetPrompt:InputHoldEnd()
             
-            print("💰 ซื้อสำเร็จ! กำลังย้ายเซิร์ฟเวอร์...")
+            print("💰 ซื้อสัตว์เลี้ยงสำเร็จ! กำลังเตรียมย้ายเซิร์ฟเวอร์...")
             task.wait(1.5) 
             HopServer()
         else
-            -- [กรณีไม่เจอสัตว์หลังจากรอเกิด 7 วิแล้ว] สั่งย้ายเซิร์ฟเวอร์หนีทันที
-            print("❌ ไม่พบสัตว์เป้าหมายในเซิร์ฟนี้! ย้ายเซิร์ฟเวอร์หนีทันที...")
+            -- [กรณีไม่เจอสัตว์หลังจากหน่วงรอแล้ว 7 วินาที] ย้ายเซิร์ฟทันที
+            print("❌ ไม่พบสัตว์เป้าหมายหลังจากหน่วงเวลารอ 7 วินาที ทำการย้ายเซิร์ฟเวอร์หนี...")
             HopServer()
         end
     end
